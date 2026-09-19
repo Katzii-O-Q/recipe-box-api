@@ -5,6 +5,8 @@ status codes - and **no authentication at all**. Anyone who can reach it can
 read, change, or delete anything. In BE104 you fix that: real users, hashed
 passwords, JSON Web Tokens, ownership rules, and middleware.
 
+Personal course copy - Kassie Harmon
+
 ## Run it
 
 ```
