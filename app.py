@@ -9,7 +9,7 @@ import sqlite3
 
 from flask import Flask, g, jsonify, request
 
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 
 DATABASE = "recipes.db"
 
@@ -80,6 +80,39 @@ def register():
         ),
         201,
     )
+
+@app.post("/login")
+def login():
+    data = request.get_json(silent=True)
+    if not data or not data.get("username") or not data.get("password"):
+        return jsonify({"error": "username and password are required"}), 400
+
+    username = data["username"]
+    password = data["password"]
+
+    db = get_db()
+    row = db.execute(
+        "SELECT id, username, email, password_hash FROM users WHERE username = ?",
+        (username,),
+    ).fetchone()
+
+    # Generic failure response (same for unknown user and wrong password)
+    generic_error = (jsonify({"error": "invalid username or password"}), 401)
+
+    if row is None:
+        return generic_error
+
+    if not check_password_hash(row["password_hash"], password):
+        return generic_error
+
+    # Success: return authenticated identity (no password/hash)
+    return jsonify(
+        {
+            "id": row["id"],
+            "username": row["username"],
+            "email": row["email"],
+        }
+    ), 200
 
 @app.get("/recipes")
 def list_recipes():
