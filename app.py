@@ -9,6 +9,8 @@ import sqlite3
 
 from flask import Flask, g, jsonify, request
 
+from werkzeug.security import generate_password_hash
+
 DATABASE = "recipes.db"
 
 app = Flask(__name__)
@@ -43,6 +45,41 @@ def recipe_to_dict(row):
 def hello():
     return jsonify({"message": "Recipe Box API", "recipes": "/recipes"})
 
+@app.post("/register")
+def register():
+    data = request.get_json(silent=True)
+    if not data or not data.get("username") or not data.get("email") or not data.get("password"):
+        return jsonify({"error": "username, email, and password are required"}), 400
+
+    password = data["password"]
+
+    password_hash = generate_password_hash(password)
+
+    db = get_db()
+
+    try:
+        cur = db.execute(
+            "INSERT INTO users (username, email, password_hash)"
+            " VALUES (?, ?, ?)",
+            (
+                data["username"],
+                data["email"],
+                password_hash
+            ),
+        )
+        db.commit()
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "username or email already in use"}), 409
+    return (
+        jsonify(
+            {
+                "id": cur.lastrowid,
+                "username": data["username"],
+                "email": data["email"],
+            }
+        ),
+        201,
+    )
 
 @app.get("/recipes")
 def list_recipes():
