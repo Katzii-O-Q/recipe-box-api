@@ -9,7 +9,7 @@ import sqlite3
 
 import jwt
 
-from flask import Flask, g, jsonify, request
+from flask import Flask, g, jsonify, request, current_app
 
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -26,6 +26,8 @@ DATABASE = "recipes.db"
 
 app = Flask(__name__)
 
+
+app.config["JWT_SECRET"] = os.environ["JWT_SECRET"]
 
 def get_db():
     if "db" not in g:
@@ -118,12 +120,15 @@ def login():
 
     # Success: return authenticated identity (no password/hash)
     payload = {
-        "sub": row["id"],
+        "sub": str(row["id"]),
         "username": row["username"],
         "exp": datetime.utcnow() + timedelta(hours=1),
     }
 
-    token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+    token = jwt.encode(
+        payload, current_app.config["JWT_SECRET"],
+        algorithm="HS256",
+        )
     
     return jsonify(
         {
@@ -152,6 +157,28 @@ def get_recipe(recipe_id):
 
 @app.post("/recipes")
 def create_recipe():
+    # 1. Read Authorization header
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return jsonify({"error": "missing or invalid Authorization header"}), 401
+
+    token = auth_header.split(" ", 1)[1].strip()
+
+    try:
+        # 2. Verify token
+        payload = jwt.decode(
+            token,
+            current_app.config["JWT_SECRET"],
+            algorithms=["HS256"], 
+        )
+    except jwt.InvalidTokenError as e:
+        # TEMP: log the real error
+        print("JWT error:", repr(e))
+        return jsonify({"error": "invalid or expired token"}), 401
+
+    # 3. Extract identity (for later use)
+    user_id = payload.get("sub")
+
     data = request.get_json(silent=True)
     if not data or not data.get("title") or not data.get("ingredients"):
         return jsonify({"error": "title and ingredients are required"}), 400
