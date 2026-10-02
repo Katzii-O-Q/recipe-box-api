@@ -105,7 +105,7 @@ def login():
 
     db = get_db()
     row = db.execute(
-        "SELECT id, username, email, password_hash FROM users WHERE username = ?",
+        "SELECT id, username, email, password_hash, role FROM users WHERE username = ?",
         (username,),
     ).fetchone()
 
@@ -122,6 +122,7 @@ def login():
     payload = {
         "sub": str(row["id"]),
         "username": row["username"],
+        "role": row["role"],
         "exp": datetime.utcnow() + timedelta(hours=1),
     }
 
@@ -281,12 +282,15 @@ def update_recipe(recipe_id):
         (recipe_id,)
     ).fetchone()
 
-    if row is None:
-        return jsonify({"error": "recipe not found"}), 404
-    else:
-        owner_id = row["owner_id"]
-        if str(owner_id) != str(user_id):
-            return jsonify({"error": "access denied. You cannot update this recipe"}), 403
+    owner_id = row["owner_id"]
+
+    is_owner = str(owner_id) == str(user_id)
+    is_admin = payload.get("role") == "admin"
+
+    if not (is_owner or is_admin):
+        return (
+            jsonify({"error": "access denied. You cannot upadte this recipe"}), 403
+        )
     
     fields, values = [], []
     for column in ("title", "ingredients", "instructions"):
@@ -337,6 +341,8 @@ def delete_recipe(recipe_id):
     except jwt.InvalidTokenError:
         return jsonify({"error": "invalid or expired token"}), 401
 
+    user_role = payload.get("role")
+    
     user_id = payload.get("sub")
     if user_id is None:
         return jsonify({"error": "invalid token: missing subject"}), 401
@@ -348,13 +354,15 @@ def delete_recipe(recipe_id):
         (recipe_id,)
     ).fetchone()
 
-    if row is None:
-        return jsonify({"error": "recipe not found"}), 404
-    else:
-        owner_id = row["owner_id"]
-        if str(owner_id) != str(user_id):
-            return jsonify({"error": "access denied. You cannot delete this recipe"}), 403
+    owner_id = row["owner_id"]
 
+    is_owner = str(owner_id) ==str(user_id)
+    is_admin = user_role == "admin"
+
+    if not (is_owner or is_admin):
+        return (
+            jsonify({"error": "access denied. You cannot delete this recipe"}), 403
+        )
 
     cur = db.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
     db.commit()
