@@ -16,6 +16,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 import os
 
+from functools import wraps
+
 from datetime import datetime, timedelta
 
 load_dotenv()
@@ -26,6 +28,44 @@ DATABASE = "recipes.db"
 
 app = Flask(__name__)
 
+def require_auth(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # 1. Read Authorization header
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"error": "missing or invalid Authoriaztion header"}), 401
+
+        token = auth_header.split(" ", 1)[1].strip()
+
+        # 2. Verify token
+        try:
+            payload = jwt.decode(
+                token,
+                current_app.config["JWT_SECRET"],
+                algorithms=["HS256"],
+            )
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired, please log in again"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "invalid or expired token"}), 401
+
+        user_role = payload.get("role")
+        user_id = payload.get("sub")
+        if user_id is None:
+            return jsonify({"error": "invalid token: missing subject"}), 401
+
+        # 3. Store on g so routes can use it
+        g.current_user = {
+            "id": str(user_id),
+            "role": user_role,
+            "payload": payload, # optional but can be handy
+        }
+
+        # 4. Call the original route
+        return func(*args, **kwargs)
+    
+    return wrapper
 
 app.config["JWT_SECRET"] = os.environ["JWT_SECRET"]
 
@@ -193,31 +233,9 @@ def get_recipe(recipe_id):
 
 
 @app.post("/recipes")
+@require_auth
 def create_recipe():
-    # 1. Read Authorization header
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return jsonify({"error": "missing or invalid Authorization header"}), 401
-
-    token = auth_header.split(" ", 1)[1].strip()
-
-    try:
-        # 2. Verify token
-        payload = jwt.decode(
-            token,
-            current_app.config["JWT_SECRET"],
-            algorithms=["HS256"], 
-        )
-    except jwt.ExpiredSignatureError:
-        # Token is valid in format/signature, but too old
-        return jsonify({"error": "Token expired, please log in again"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "invalid or expired token"}), 401
-
-    # 3. Extract identity (for later use)
-    user_id = payload.get("sub")
-    if user_id is None:
-        return jsonify({"error": "invalid token: missing subject"}), 401
+    user_id = g.current_user["id"]
 
     data = request.get_json(silent=True)
     if not data or not data.get("title") or not data.get("ingredients"):
@@ -247,33 +265,14 @@ def create_recipe():
 
 
 @app.patch("/recipes/<int:recipe_id>")
+@require_auth
 def update_recipe(recipe_id):
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "a JSON body is required"}), 400
 
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return jsonify({"error": "missing or invalid Authorization header"}), 401
-    
-    token = auth_header.split(" ", 1)[1].strip()
-
-    try:
-        # 2. Verify token
-        payload = jwt.decode(
-            token,
-            current_app.config["JWT_SECRET"],
-            algorithms=["HS256"], 
-        )
-    except jwt.ExpiredSignatureError:
-        # Token is valid in format/signature, but too old            
-        return jsonify({"error": "Token expired, please log in again"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "invalid or expired token"}), 401
-
-    user_id = payload.get("sub")
-    if user_id is None:
-        return jsonify({"error": "invalid token: missing subject"}), 401
+    user_id = g.current_user["id"]
+    user_role = g.current_user["role"]
 
     db = get_db()
 
@@ -282,10 +281,13 @@ def update_recipe(recipe_id):
         (recipe_id,)
     ).fetchone()
 
+    if row is None:
+        return jsonify({"error": "recipe not found"}), 404
+    
     owner_id = row["owner_id"]
 
     is_owner = str(owner_id) == str(user_id)
-    is_admin = payload.get("role") == "admin"
+    is_admin = user_role == "admin"
 
     if not (is_owner or is_admin):
         return (
@@ -320,32 +322,11 @@ def update_recipe(recipe_id):
 
 
 @app.delete("/recipes/<int:recipe_id>")
+@require_auth
 def delete_recipe(recipe_id):
 
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return jsonify({"error": "missing or invalid Authorization header"}), 401
-    
-    token = auth_header.split(" ", 1)[1].strip()
-
-    try:
-        # 2. Verify token
-        payload = jwt.decode(
-            token,
-            current_app.config["JWT_SECRET"],
-            algorithms=["HS256"], 
-        )
-    except jwt.ExpiredSignatureError:
-        # Token is valid in format/signature, but too old            
-        return jsonify({"error": "Token expired, please log in again"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "invalid or expired token"}), 401
-
-    user_role = payload.get("role")
-    
-    user_id = payload.get("sub")
-    if user_id is None:
-        return jsonify({"error": "invalid token: missing subject"}), 401
+    user_id = g.current_user["id"]
+    user_role = g.current_user["role"]
 
     db = get_db()
 
@@ -353,6 +334,9 @@ def delete_recipe(recipe_id):
         "SELECT * FROM recipes WHERE id = ?",
         (recipe_id,)
     ).fetchone()
+
+    if row is None:
+        return jsonify({"error": "recipe not found"}), 404
 
     owner_id = row["owner_id"]
 
