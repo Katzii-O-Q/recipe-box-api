@@ -204,8 +204,7 @@ def get_recipe(recipe_id):
     # Private recipe: must be owner to read it
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        # Authenticated but unauthorized is 403, but here we don't even know who they are.
-        # For a private resouce, it's safe to say forbidden.
+
         return jsonify({"error": "forbidden: private recipe"}), 403
 
     token = auth_header.split(" ", 1)[1].strip()
