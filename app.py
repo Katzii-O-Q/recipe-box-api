@@ -182,7 +182,12 @@ def login():
 
 @app.get("/recipes")
 def list_recipes():
-    rows = get_db().execute("SELECT * FROM recipes ORDER BY id").fetchall()
+    db = get_db()
+
+    # only return public recipes
+    rows = db.execute(
+        "SELECT * FROM recipes WHERE is_public = 1 ORDER BY id"
+    ).fetchall()
     return jsonify([recipe_to_dict(r) for r in rows])
 
 

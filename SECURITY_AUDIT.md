@@ -19,6 +19,11 @@
 - Observed: 204 NO CONTENT
 - Conclusion: ✅ Owner can delete their own recipe
 
+## Updated Privacy / lising behavior
+- Request: GET /recipes as anonymous
+- Observed: Only returned recipes where `is_public = true`.
+- Conclusion: ✅ Updated filtering in endpoint to only show recipes with `is_public = 1` for anonymous user.
+
 ## Privacy / lising behavior
 - Intended: Anonymous GET /recipes should only return recipes where `is_public = true`.
 - Request: GET /recipes as anonymous
