@@ -1,10 +1,3 @@
-"""Recipe Box API — BE104 course skeleton.
-
-A working Flask + SQLite CRUD API for recipes. It stores data perfectly —
-and it trusts everyone. There is no authentication and no authorization yet.
-That is the point: you will add both, lesson by lesson, in Units 2 and 3.
-"""
-
 import sqlite3
 
 import jwt
@@ -34,7 +27,7 @@ def require_auth(func):
         # 1. Read Authorization header
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
-            return jsonify({"error": "missing or invalid Authoriaztion header"}), 401
+            return jsonify({"error": "missing or invalid Authorization header"}), 401
 
         token = auth_header.split(" ", 1)[1].strip()
 
@@ -295,7 +288,7 @@ def update_recipe(recipe_id):
 
     if not (is_owner or is_admin):
         return (
-            jsonify({"error": "access denied. You cannot upadte this recipe"}), 403
+            jsonify({"error": "access denied. You cannot update this recipe"}), 403
         )
     
     fields, values = [], []
