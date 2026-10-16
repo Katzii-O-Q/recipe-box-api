@@ -34,3 +34,12 @@
 - Old exploit: anonymous user could perform actions on recipes.
 - Current: destructive actions (e.g. DELETE /recipes/:id) now require auth and enforce ownership/role checks.
 - Status: ✅ Exploit closed for protected actions; ❌ privacy still broken on list-all endpoint.
+
+# Security baseline
+
+2026-09-24
+
+- GET /recipes → 200 OK, returns all recipes to anonymous requester
+- POST /recipes → 201 CREATED, anonymous requester can create recipes
+- PATCH /recipes/1 → 200 OK, anonymous requester can change existing recipe
+- DELETE /recipes/1 → 204 NO CONTENT, anonymous requester can delete an existing recipe

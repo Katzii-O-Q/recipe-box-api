@@ -350,7 +350,3 @@ def delete_recipe(recipe_id):
     if cur.rowcount == 0:
         return jsonify({"error": "recipe not found"}), 404
     return "", 204
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
