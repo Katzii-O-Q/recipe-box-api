@@ -16,9 +16,12 @@ from datetime import datetime, timedelta
 from app.config import DevelopmentConfig, ProductionConfig, TestingConfig
 
 from app.routes.recipes import recipes_bp
+
 from app.routes.auth import auth_bp
 
 from app.db_utils import get_db
+
+from app.extensions import db
 
 load_dotenv()
 
@@ -33,6 +36,8 @@ def create_app(config_name="default"):
 
     config_class = config_map.get(config_name)
     app.config.from_object(config_class)
+
+    db.init_app(app)
 
     app.register_blueprint(recipes_bp, url_prefix="")
 
