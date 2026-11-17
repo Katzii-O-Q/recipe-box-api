@@ -5,27 +5,38 @@ import jwt
 from flask import Blueprint, jsonify, request, current_app, g
 
 from app.db_utils import get_db
+
 from app.recipe_utils import recipe_to_dict, list_public_recipes, create_recipe_for_user, get_recipe_row
 
 from app.services.auth_service import require_auth
+
+from app.services.recipe_service import list_public_recipes_orm
+from app.services.recipe_service import get_recipe_by_id_orm
 
 recipes_bp = Blueprint("recipes", __name__)
 
 @recipes_bp.get("/recipes")
 def list_recipes():
-    recipes = list_public_recipes()
+    recipes = list_public_recipes_orm()
     return jsonify(recipes)
 
 
 @recipes_bp.get("/recipes/<int:recipe_id>")
 def get_recipe(recipe_id):
-    row = get_recipe_row(recipe_id)
-    if row is None:
+    recipe = get_recipe_by_id_orm(recipe_id)
+    if recipe is None:
         return jsonify({"error": "recipe not found"}), 404
-    
+
     # If public, anyone can read it
-    if row["is_public"]:
-        return jsonify(recipe_to_dict(row))
+    if recipe.is_public:
+        recipe_dict = {
+            "id": recipe.id,
+            "title": recipe.title,
+            "ingredients": recipe.ingredients,
+            "instructions": recipe.instructions,
+            "is_public": bool(recipe.is_public),
+        }
+        return jsonify(recipe_dict)
 
     # Private recipe: must be owner to read it
     auth_header = request.headers.get("Authorization", "")
@@ -50,12 +61,23 @@ def get_recipe(recipe_id):
     if user_id is None:
         return jsonify({"error": "invalid token: missing subject"}), 401
 
+    row = get_recipe_row(recipe_id)
+    if row is None:
+        return jsonify({"error": "recipe not found"}), 404
+
     owner_id = row["owner_id"]
+    
     if str(owner_id) != str(user_id):
         return jsonify({"error": "access denied. You cannot view this recipe"}), 403
     
-    return jsonify(recipe_to_dict(row))
-
+    recipe_dict = {
+        "id": recipe.id,
+        "title": recipe.title,
+        "ingredients": recipe.ingredients,
+        "instructions": recipe.instructions,
+        "is_public": bool(recipe.is_public),
+    }
+    return jsonify(recipe_dict)
 
 @recipes_bp.post("/recipes")
 @require_auth

@@ -28,4 +28,7 @@ Total responsibilities identified: 5
 Total acceptance items: 7
 
 ## 4. Refactor boundary
-This refactor may change the internal file/module structure of the app (for example, moving auth, recipes, DB, and config into separate modules), but it must not change the public contract. All existing endpoints, methods, required inputs, status codes, and important response fields must stay the same.
+This refactor may change the internal file/module structure of the app (for example, moving auth, recipes, DB, and config into separate modules), but it must not change the public contract. All existing endpoints, methods, required inputs, status codes, and important response fields must stay the same. 
+
+## 5. New changes
+ORM models now exist but endpoints stil luse raw sqlite3 
